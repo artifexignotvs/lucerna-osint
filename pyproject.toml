@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lucerna-osint"
+version = "0.1.0"
+description = "Offline saved-page link inventories with source hashes and line references"
+requires-python = ">=3.10"
+readme = "README.md"
+license = {text = "MIT"}
+dependencies = []
+
+[project.scripts]
+lucerna = "lucerna_osint.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["lucerna_osint*"]
