@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lucerna-osint"
-version = "0.1.0"
+version = "0.2.0"
 description = "Offline saved-page link inventories with source hashes and line references"
 requires-python = ">=3.10"
 readme = "README.md"

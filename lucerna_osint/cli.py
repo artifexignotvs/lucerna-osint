@@ -6,12 +6,13 @@ import hashlib
 import io
 import ipaddress
 import json
+import os
+import stat
 import re
 import sys
 from collections import Counter
 from html import unescape
 from html.parser import HTMLParser
-from pathlib import Path
 from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 
 MAX_BYTES = 16 * 1024 * 1024
@@ -170,16 +171,48 @@ def csv_report(report):
     return out.getvalue().rstrip("\r\n")
 
 
+def read_html(path):
+    """Fasciculus ordinarius finitus aperitur; fistula numquam exspectatur."""
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    descriptor = os.open(path, flags)
+    with os.fdopen(descriptor, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError("Input must be a regular file")
+        if info.st_size > MAX_BYTES:
+            raise ValueError("Input exceeds 16 MiB")
+        data = stream.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES:
+        raise ValueError("Input exceeds 16 MiB")
+    return data
+
+
 def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "diff":
+        from .compare import load_report, compare_reports, markdown_report
+        parser = argparse.ArgumentParser(prog="lucerna diff", description="Compare two saved JSON inventories without opening their referenced URLs.")
+        parser.add_argument("before")
+        parser.add_argument("after")
+        parser.add_argument("--format", choices=("json", "markdown"), default="json")
+        args = parser.parse_args(argv[1:])
+        try:
+            report = compare_reports(load_report(args.before), load_report(args.after))
+        except ValueError as error:
+            print(json.dumps({"error": str(error)}), file=sys.stderr)
+            return 2
+        print(json.dumps(report, ensure_ascii=True, indent=2) if args.format == "json" else markdown_report(report))
+        return 1 if report["status"] == "different" else 0
     parser = argparse.ArgumentParser(description="Inspect links and metadata in a saved HTML page without network access.")
+    from . import __version__
+    parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("file", help="Saved HTML file")
     parser.add_argument("--source-url", help="Original absolute URL for relative links; never fetched")
     parser.add_argument("--encoding", default="utf-8", help="Input text encoding (default: utf-8)")
     parser.add_argument("--format", choices=("text", "json", "csv"), default="text")
     args = parser.parse_args(argv)
     try:
-        with Path(args.file).open("rb") as stream:
-            data = stream.read(MAX_BYTES + 1)
+        data = read_html(args.file)
         report = analyze(data, args.source_url, args.encoding)
     except (OSError, ValueError) as exc:
         message = "Cannot read input file" if isinstance(exc, OSError) else str(exc)
